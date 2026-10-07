@@ -80,6 +80,7 @@ async function iniciar(){
   await carregarCadastros();
   await garantirAno(ANO_ATUAL);
   await carregarResumo();
+  if (SEM_ASSINATURA) setTimeout(() => toast('Aviso para a Qualidade: rode o arquivo 15_assinaturas.sql no Supabase para guardar as assinaturas.'), 800);
 
   $('who-name').textContent = perfil.nome + ' · ' + (isQual() ? 'Qualidade' : isDir() ? 'Diretoria' : eqNome(perfil.equipe_id));
   if (veTudo()){
@@ -118,15 +119,19 @@ async function carregarResumo(){
   RESUMO = new Map((data||[]).map(r => [r.tecnico_id, r]));
 }
 
+let COLS_VIS = 'id,data,tecnico_id,tecnico_nome,conforme,motivo,supervisor,gerente,cidade,base,equipe_id,ano,semana,assinado_por', SEM_ASSINATURA = false;
 // Carrega as vistorias só do ano pedido (em páginas de 1000, limite do Supabase)
 async function garantirAno(ano){
   if (ANOS[ano]) return ANOS[ano];
   const out = []; const PAGE = 1000;
   const aviso = $('loading').hidden ? null : $('loading');
   for (let i = 0; ; i += PAGE){
-    const { data, error } = await sb.from('vistoria_registros')
-      .select('id,data,tecnico_id,tecnico_nome,conforme,motivo,supervisor,gerente,cidade,base,equipe_id,ano,semana,assinado_por')
-      .eq('ano', ano).order('id').range(i, i + PAGE - 1);
+    let { data, error } = await sb.from('vistoria_registros')
+      .select(COLS_VIS).eq('ano', ano).order('id').range(i, i + PAGE - 1);
+    if (error && /assinado_por/.test(error.message) && COLS_VIS.includes('assinado_por')){
+      // Banco ainda sem o arquivo 15: carrega sem a coluna de assinatura
+      COLS_VIS = COLS_VIS.replace(',assinado_por',''); SEM_ASSINATURA = true; i -= PAGE; continue;
+    }
     if (error) { toast('Erro ao carregar vistorias: ' + error.message); break; }
     out.push(...data);
     if (aviso) aviso.textContent = `Carregando vistorias de ${ano}… ${out.length.toLocaleString('pt-BR')}`;
@@ -168,9 +173,12 @@ function abrirCombo(){
 }
 function fecharCombo(){ tecList.hidden = true; fTec.setAttribute('aria-expanded','false'); }
 function escolherTec(i){ const t = comboItens[i]; if (!t) return; fTec.value = t.n; fecharCombo(); showAuto(); }
-tecList.addEventListener('pointerdown', e => { const li = e.target.closest('li[data-i]'); if (li){ e.preventDefault(); escolherTec(+li.dataset.i); } });
+// Escolhe no toque (click), não ao encostar o dedo: assim dá para rolar a lista sem selecionar
+tecList.addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if (li) escolherTec(+li.dataset.i); });
 fTec.addEventListener('focus', abrirCombo);
-fTec.addEventListener('blur', () => setTimeout(fecharCombo, 150));
+// Fecha só quando toca fora do campo e da lista
+document.addEventListener('pointerdown', e => { if (!tecList.hidden && !e.target.closest('.combo')) fecharCombo(); });
+fTec.addEventListener('focusout', e => { if (e.relatedTarget && !e.relatedTarget.closest('.combo')) fecharCombo(); });
 fTec.addEventListener('keydown', e => {
   if (tecList.hidden && (e.key==='ArrowDown')) abrirCombo();
   const lis = [...tecList.querySelectorAll('li[data-i]')]; if (!lis.length) return;
@@ -274,8 +282,8 @@ $('form').onsubmit = async e => {
   const { data, error } = await sb.from('vistoria_registros').insert({
     data: fData.value, tecnico_id: t.id, tecnico_nome: t.n, conforme: true,
     divergencias: marcados, motivo: fMot.value.trim() || null,
-    assinatura_tecnico: PADS.tecnico.caminho(), assinatura_supervisor: PADS.supervisor.caminho(), assinado_por: PERFIL.nome
-  }).select('id,data,tecnico_id,tecnico_nome,conforme,motivo,supervisor,gerente,cidade,base,equipe_id,ano,semana,assinado_por').single();
+    ...(SEM_ASSINATURA ? {} : { assinatura_tecnico: PADS.tecnico.caminho(), assinatura_supervisor: PADS.supervisor.caminho(), assinado_por: PERFIL.nome })
+  }).select(COLS_VIS).single();
   btn.disabled = false;
   if (error){ toast('Não foi possível salvar: ' + error.message); return; }
 
