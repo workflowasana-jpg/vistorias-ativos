@@ -139,9 +139,9 @@ input[type=email],input[type=password]{width:100%;background:var(--input);border
 .loading{padding:40px 0;color:var(--muted)}
 
 /* Login com marca */
-.login-head{display:flex;align-items:center;gap:16px;margin-bottom:22px}
+.login-head{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:24px;text-align:center}
 .login-selo{width:72px;height:auto;flex:none}
-.login-logo{height:40px;width:auto;display:block;margin-bottom:4px}
+.login-logo{height:56px;width:auto;display:block}
 .login-title{font-family:var(--cond);font-weight:700;font-size:1.3rem;color:var(--verde-escuro)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .login-title{color:var(--text)}}
 :root[data-theme="dark"] .login-title{color:var(--text)}
@@ -196,3 +196,7 @@ dialog::backdrop{background:#0b1a0f99}
 .rel-bar i{position:absolute;inset:0 auto 0 0;border-radius:3px}
 .rel-chart svg{width:100%;height:auto}
 .rel-foot{margin-top:18px;font-size:8.5pt;color:#5e6b61;border-top:1px solid #dfe5df;padding-top:6px}
+
+/* Selo da Qualidade no canto superior direito */
+.top-selo{height:52px;width:auto;display:block;margin:-6px 0 -10px 6px;filter:drop-shadow(0 2px 4px #0004)}
+@media (max-width:640px){.top-selo{height:40px}}
