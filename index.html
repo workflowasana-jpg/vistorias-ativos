@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Vistorias de Ativos · DTEL</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+<link rel="icon" href="assets/selo-qualidade.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
@@ -12,7 +12,7 @@
 <body>
 <div class="login" id="login" hidden>
   <form class="panel" id="login-form">
-    <div class="brand"><i></i>Vistorias de Ativos</div>
+    <div class="login-head"><img src="assets/selo-qualidade.png" alt="Selo Qualidade DTEL" class="login-selo"><div><img src="assets/logo-dtel-escuro.png" alt="DTEL" class="login-logo"><div class="login-title">Vistorias de Ativos</div></div></div>
     <div class="field"><label class="f" for="l-email">E-mail</label><input type="email" id="l-email" autocomplete="username" required></div>
     <div class="field"><label class="f" for="l-senha">Senha</label><input type="password" id="l-senha" autocomplete="current-password" required></div>
     <div id="l-msg"></div>
@@ -24,7 +24,7 @@
 
 <header class="top">
   <div class="top-in">
-    <div class="brand"><i></i>Vistorias de Ativos</div>
+    <div class="brand"><img src="assets/logo-dtel.png" alt="DTEL" class="logo"><span class="sep"></span>Vistorias de Ativos</div>
     <div class="who"><span id="who-name"></span><span id="who-wrap" hidden><label for="who">Ver</label><select id="who"></select></span><button class="out" id="sair">Sair</button></div>
   </div>
   <nav class="tabs" role="tablist">
@@ -32,6 +32,7 @@
     <button role="tab" data-v="painel" aria-selected="false">Painel semanal</button>
     <button role="tab" data-v="hist" aria-selected="false">Histórico</button>
     <button role="tab" data-v="tec" aria-selected="false">Técnicos</button>
+    <button role="tab" data-v="cad" aria-selected="false" id="tab-cad" hidden>Cadastros</button>
     <button role="tab" data-v="regras" aria-selected="false">Regras</button>
   </nav>
 </header>
@@ -94,6 +95,7 @@
     <div class="field"><label class="f" for="p-ano">Ano</label><select class="in" id="p-ano"></select></div>
     <div class="field"><label class="f" for="p-sem">Semana</label><select class="in" id="p-sem"></select></div>
     <div class="week-label" id="p-range"></div>
+    <button class="btn ghost push" id="p-pdf" type="button">Relatório em PDF</button>
   </div>
   <div class="kpis" id="kpis"></div>
   <div class="panel" style="margin-bottom:20px">
@@ -115,13 +117,14 @@
 <!-- HISTÓRICO -->
 <section id="v-hist" hidden>
   <h1>Histórico de vistorias</h1>
-  <p class="sub">Todos os apontamentos, inclusive os importados da planilha antiga.</p>
+  <p class="sub">Escolha o ano para carregar. Dentro dele, filtre por mês, semana, equipe ou resultado.</p>
   <div class="filters">
-    <div class="field"><label class="f" for="h-q">Buscar</label><input type="search" id="h-q" placeholder="Técnico, supervisor, cidade"></div>
+    <div class="field"><label class="f" for="h-ano">Ano</label><select class="in" id="h-ano"></select></div>
+    <div class="field"><label class="f" for="h-mes">Mês</label><select class="in" id="h-mes"></select></div>
+    <div class="field"><label class="f" for="h-sem">Semana</label><select class="in" id="h-sem"></select></div>
     <div class="field"><label class="f" for="h-eq">Equipe</label><select class="in" id="h-eq"></select></div>
     <div class="field"><label class="f" for="h-c">Resultado</label><select class="in" id="h-c"><option value="">Todos</option><option value="1">Conforme</option><option value="0">Não conforme</option></select></div>
-    <div class="field"><label class="f" for="h-de">De</label><input type="date" id="h-de"></div>
-    <div class="field"><label class="f" for="h-ate">Até</label><input type="date" id="h-ate"></div>
+    <div class="field grow"><label class="f" for="h-q">Buscar</label><input type="search" id="h-q" placeholder="Técnico, supervisor, cidade"></div>
   </div>
   <div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Sem.</th><th>Técnico</th><th>Resultado</th><th>Divergência</th><th>Supervisor</th><th>Equipe</th><th>Cidade</th></tr></thead><tbody id="h-body"></tbody></table></div>
   <div class="pager"><span id="h-info"></span><button class="btn ghost" id="h-prev">Anterior</button><button class="btn ghost" id="h-next">Próxima</button></div>
@@ -129,16 +132,49 @@
 
 <!-- TÉCNICOS -->
 <section id="v-tec" hidden>
-  <h1>Técnicos</h1>
-  <p class="sub">Cadastro da aba Base. Quem passou de 14 dias sem vistoria aparece em vermelho.</p>
+  <h1>Técnicos ativos</h1>
+  <p class="sub">Quantidade de vistorias de cada técnico. Quem passou de 14 dias sem vistoria aparece em vermelho.</p>
   <div class="filters">
-    <div class="field"><label class="f" for="t-q">Buscar</label><input type="search" id="t-q" placeholder="Nome, cidade, supervisor"></div>
+    <div class="field grow"><label class="f" for="t-q">Buscar</label><input type="search" id="t-q" placeholder="Nome, cidade, supervisor"></div>
     <div class="field"><label class="f" for="t-eq">Equipe</label><select class="in" id="t-eq"></select></div>
-    <div class="field"><label class="f" for="t-st">Status</label><select class="in" id="t-st"><option>Ativo</option><option>Inativo</option><option value="">Todos</option></select></div>
+    <div class="field"><label class="f" for="t-ord">Ordenar por</label><select class="in" id="t-ord"><option value="nome">Nome</option><option value="ano">Mais vistorias no ano</option><option value="menos">Menos vistorias no ano</option><option value="ultima">Mais tempo sem vistoria</option></select></div>
   </div>
-  <div class="tbl-wrap"><table><thead><tr><th>Técnico</th><th>Cidade</th><th>Base</th><th>Supervisor</th><th>Equipe</th><th>Vistorias no ano</th><th>Conformidade</th><th>Última vistoria</th></tr></thead><tbody id="t-body"></tbody></table></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Técnico</th><th>Cidade</th><th>Supervisor</th><th>Equipe</th><th class="num">Vistorias no ano</th><th class="num">Total</th><th class="num">% conforme no ano</th><th>Última</th></tr></thead><tbody id="t-body"></tbody></table></div>
   <div class="pager"><span id="t-info"></span></div>
 </section>
+
+<!-- CADASTROS (Qualidade) -->
+<section id="v-cad" hidden>
+  <h1>Cadastros</h1>
+  <p class="sub">Somente a Qualidade altera esses cadastros. Técnicos desligados são inativados, nunca apagados, para manter o histórico.</p>
+  <div class="subtabs" id="cad-tabs">
+    <button data-c="tecnicos" aria-pressed="true">Técnicos</button>
+    <button data-c="supervisores" aria-pressed="false">Supervisores</button>
+    <button data-c="gestores" aria-pressed="false">Gestores</button>
+    <button data-c="equipes" aria-pressed="false">Equipes</button>
+    <button data-c="destinatarios" aria-pressed="false">Relatório por e-mail</button>
+  </div>
+  <div class="filters">
+    <div class="field grow"><label class="f" for="c-q">Buscar</label><input type="search" id="c-q" placeholder="Digite para filtrar"></div>
+    <div class="field" id="c-st-wrap"><label class="f" for="c-st">Situação</label><select class="in" id="c-st"><option value="1">Ativos</option><option value="0">Inativos</option><option value="">Todos</option></select></div>
+    <button class="btn push" id="c-novo" type="button">Novo</button>
+  </div>
+  <div id="c-extra"></div>
+  <div class="tbl-wrap"><table><thead id="c-head"></thead><tbody id="c-body"></tbody></table></div>
+  <div class="pager"><span id="c-info"></span></div>
+</section>
+
+<dialog id="dlg">
+  <form method="dialog" id="dlg-form" class="dlg-form" novalidate>
+    <h2 id="dlg-title"></h2>
+    <div id="dlg-fields"></div>
+    <div id="dlg-msg"></div>
+    <div class="dlg-actions">
+      <button class="btn ghost" value="cancel" formnovalidate type="button" id="dlg-cancel">Cancelar</button>
+      <button class="btn" id="dlg-save" type="submit">Salvar</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- REGRAS -->
 <section id="v-regras" hidden>
@@ -162,6 +198,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 </div>
+<div id="relatorio"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
