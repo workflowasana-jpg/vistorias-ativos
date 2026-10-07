@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vistorias de Ativos · DTEL</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="login" id="login" hidden>
+  <form class="panel" id="login-form">
+    <div class="brand"><i></i>Vistorias de Ativos</div>
+    <div class="field"><label class="f" for="l-email">E-mail</label><input type="email" id="l-email" autocomplete="username" required></div>
+    <div class="field"><label class="f" for="l-senha">Senha</label><input type="password" id="l-senha" autocomplete="current-password" required></div>
+    <div id="l-msg"></div>
+    <button class="btn full" type="submit" id="l-btn">Entrar</button>
+    <p class="hint" style="margin-top:14px">Acesso liberado pela Qualidade. Esqueceu a senha? Fale com a Qualidade.</p>
+  </form>
+</div>
+<div id="app" hidden>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><i></i>Vistorias de Ativos</div>
+    <div class="who"><span id="who-name"></span><span id="who-wrap" hidden><label for="who">Ver</label><select id="who"></select></span><button class="out" id="sair">Sair</button></div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-v="nova" aria-selected="true">Nova vistoria</button>
+    <button role="tab" data-v="painel" aria-selected="false">Painel semanal</button>
+    <button role="tab" data-v="hist" aria-selected="false">Histórico</button>
+    <button role="tab" data-v="tec" aria-selected="false">Técnicos</button>
+    <button role="tab" data-v="regras" aria-selected="false">Regras</button>
+  </nav>
+</header>
+
+<main id="app-main">
+<div class="loading" id="loading">Carregando vistorias…</div>
+<!-- NOVA -->
+<section id="v-nova" hidden>
+  <h1>Registrar vistoria</h1>
+  <p class="sub">Preencha só o que mudou em campo. Supervisor, gerente, cidade, base e semana vêm do cadastro do técnico.</p>
+  <div class="grid2">
+    <form class="panel" id="form" novalidate>
+      <div class="field">
+        <label class="f" for="f-data">Data da vistoria</label>
+        <input type="date" id="f-data" required>
+        <div class="hint">É a data em que a vistoria foi feita, não a do preenchimento.</div>
+        <div id="f-data-msg"></div>
+      </div>
+      <div class="field">
+        <label class="f" for="f-tec">Técnico</label>
+        <input type="search" id="f-tec" list="dl-tec" placeholder="Digite o nome" autocomplete="off" required>
+        <datalist id="dl-tec"></datalist>
+        <div id="f-tec-msg"></div>
+      </div>
+      <div class="field" id="auto-box" hidden>
+        <dl class="auto" id="auto"></dl>
+      </div>
+      <div class="field">
+        <span class="f" style="display:block;font-weight:600;font-size:.92rem;margin-bottom:6px">Divergências entre sistema e físico</span>
+        <div class="checks">
+          <label class="chk crit"><input type="checkbox" value="ONU"><span>ONU</span></label>
+          <label class="chk crit"><input type="checkbox" value="Roteador"><span>Roteadores</span></label>
+          <label class="chk crit"><input type="checkbox" value="Cabo de fibra"><span>Cabo de fibra<small>01F, 12F, 24F etc.</small></span></label>
+          <label class="chk crit"><input type="checkbox" value="Conectores"><span>Conectores</span></label>
+          <label class="chk cons" style="grid-column:1/-1"><input type="checkbox" value="Itens de consumo"><span>Itens de consumo<small>Abraçadeiras, fixa-fios, esticadores. Não reprova a vistoria, mas fica registrado.</small></span></label>
+        </div>
+      </div>
+      <div class="field">
+        <div class="verdict ok" id="verdict"><b>Conforme</b><span>Nenhum item crítico divergente</span></div>
+      </div>
+      <div class="field" id="mot-box" hidden>
+        <label class="f" for="f-mot">Detalhe da divergência</label>
+        <textarea id="f-mot" placeholder="Ex.: ONU Fiberhome 02 / Conector APC verde 03"></textarea>
+        <div id="f-mot-msg"></div>
+      </div>
+      <button class="btn" type="submit">Salvar vistoria</button>
+    </form>
+    <aside class="panel">
+      <h2 id="last-title">Últimas vistorias</h2>
+      <ul class="list" id="last"></ul>
+    </aside>
+  </div>
+</section>
+
+<!-- PAINEL -->
+<section id="v-painel" hidden>
+  <h1>Painel semanal</h1>
+  <p class="sub">Conformidade por equipe na semana escolhida. Semana conta de domingo a sábado, como no WEEKNUM da planilha.</p>
+  <div class="filters">
+    <div class="field"><label class="f" for="p-ano">Ano</label><select class="in" id="p-ano"></select></div>
+    <div class="field"><label class="f" for="p-sem">Semana</label><select class="in" id="p-sem"></select></div>
+    <div class="week-label" id="p-range"></div>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="panel" style="margin-bottom:20px">
+    <h2>Conformidade por equipe</h2>
+    <div id="meters"></div>
+    <div class="legend">
+      <span><span class="tag t-otimo">Ótimo</span> acima de 90%</span>
+      <span><span class="tag t-mediano">Mediano</span> 70 a 90%</span>
+      <span><span class="tag t-grave">Grave</span> abaixo de 70%</span>
+      <span><span class="tag t-gravissimo">Gravíssimo</span> nenhuma vistoria</span>
+    </div>
+  </div>
+  <div class="panel">
+    <h2 id="chart-title">Conformidade semana a semana</h2>
+    <div class="chart-wrap"><div class="chart" id="chart"></div></div>
+  </div>
+</section>
+
+<!-- HISTÓRICO -->
+<section id="v-hist" hidden>
+  <h1>Histórico de vistorias</h1>
+  <p class="sub">Todos os apontamentos, inclusive os importados da planilha antiga.</p>
+  <div class="filters">
+    <div class="field"><label class="f" for="h-q">Buscar</label><input type="search" id="h-q" placeholder="Técnico, supervisor, cidade"></div>
+    <div class="field"><label class="f" for="h-eq">Equipe</label><select class="in" id="h-eq"></select></div>
+    <div class="field"><label class="f" for="h-c">Resultado</label><select class="in" id="h-c"><option value="">Todos</option><option value="1">Conforme</option><option value="0">Não conforme</option></select></div>
+    <div class="field"><label class="f" for="h-de">De</label><input type="date" id="h-de"></div>
+    <div class="field"><label class="f" for="h-ate">Até</label><input type="date" id="h-ate"></div>
+  </div>
+  <div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Sem.</th><th>Técnico</th><th>Resultado</th><th>Divergência</th><th>Supervisor</th><th>Equipe</th><th>Cidade</th></tr></thead><tbody id="h-body"></tbody></table></div>
+  <div class="pager"><span id="h-info"></span><button class="btn ghost" id="h-prev">Anterior</button><button class="btn ghost" id="h-next">Próxima</button></div>
+</section>
+
+<!-- TÉCNICOS -->
+<section id="v-tec" hidden>
+  <h1>Técnicos</h1>
+  <p class="sub">Cadastro da aba Base. Quem passou de 14 dias sem vistoria aparece em vermelho.</p>
+  <div class="filters">
+    <div class="field"><label class="f" for="t-q">Buscar</label><input type="search" id="t-q" placeholder="Nome, cidade, supervisor"></div>
+    <div class="field"><label class="f" for="t-eq">Equipe</label><select class="in" id="t-eq"></select></div>
+    <div class="field"><label class="f" for="t-st">Status</label><select class="in" id="t-st"><option>Ativo</option><option>Inativo</option><option value="">Todos</option></select></div>
+  </div>
+  <div class="tbl-wrap"><table><thead><tr><th>Técnico</th><th>Cidade</th><th>Base</th><th>Supervisor</th><th>Equipe</th><th>Vistorias no ano</th><th>Conformidade</th><th>Última vistoria</th></tr></thead><tbody id="t-body"></tbody></table></div>
+  <div class="pager"><span id="t-info"></span></div>
+</section>
+
+<!-- REGRAS -->
+<section id="v-regras" hidden>
+  <h1>Regras das vistorias</h1>
+  <p class="sub">Trazidas da aba Regras, já ajustadas para o sistema.</p>
+  <ol class="rules">
+    <li>Cada gerente e seus supervisores registram e consultam apenas a própria equipe.</li>
+    <li>Só se preenche data, técnico e divergências. O restante vem do cadastro do técnico. A data é a da realização da vistoria.</li>
+    <li>A vistoria é conforme quando ONU, roteadores, cabo de fibra (01F, 12F, 24F etc.) e conectores batem entre sistema e físico.</li>
+    <li>Divergência em itens de consumo, como abraçadeiras e fixa-fios, não reprova a vistoria, mas fica registrada e a supervisão deve agir se for rotineira.</li>
+    <li>Toda vistoria precisa ter o PDF arquivado, sob responsabilidade da gerência e supervisores, e disponível para auditoria.</li>
+    <li>O prazo de lançamento é o sábado da semana da vistoria. Na segunda-feira, a semana anterior precisa estar completa.</li>
+    <li>O número da semana é o do ano vigente.</li>
+    <li>Registros não devem ser editados depois de salvos. Correções ficam no histórico.</li>
+    <li>Inclusão de técnico ou troca de supervisor é pedida ao setor da Qualidade, que atualiza o cadastro.</li>
+  </ol>
+</section>
+
+
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
