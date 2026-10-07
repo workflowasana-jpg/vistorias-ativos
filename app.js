@@ -52,7 +52,7 @@ function status(p, total){
 }
 const corPct = p => p > .9 ? '#1a9e38' : p >= .7 ? '#c99700' : '#d9661f';
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none',3200); }
-const toVis = r => ({ id:r.id, eq:eqNome(r.equipe_id), d:r.data, t:r.tecnico_nome, tid:r.tecnico_id, c:r.conforme?1:0, m:r.motivo||'', s:r.supervisor||'', g:r.gerente||'', ci:r.cidade||'', b:r.base||'', ano:r.ano, sem:r.semana });
+const toVis = r => ({ id:r.id, eq:eqNome(r.equipe_id), d:r.data, t:r.tecnico_nome, tid:r.tecnico_id, c:r.conforme?1:0, m:r.motivo||'', s:r.supervisor||'', g:r.gerente||'', ci:r.cidade||'', b:r.base||'', ano:r.ano, sem:r.semana, ass:r.assinado_por||'' });
 const anoOptions = () => Array.from({length:ANO_ATUAL-ANO_INICIAL+1},(_,i)=>ANO_ATUAL-i).map(a=>`<option>${a}</option>`).join('');
 
 // ---------- Login ----------
@@ -125,7 +125,7 @@ async function garantirAno(ano){
   const aviso = $('loading').hidden ? null : $('loading');
   for (let i = 0; ; i += PAGE){
     const { data, error } = await sb.from('vistoria_registros')
-      .select('id,data,tecnico_id,tecnico_nome,conforme,motivo,supervisor,gerente,cidade,base,equipe_id,ano,semana')
+      .select('id,data,tecnico_id,tecnico_nome,conforme,motivo,supervisor,gerente,cidade,base,equipe_id,ano,semana,assinado_por')
       .eq('ano', ano).order('id').range(i, i + PAGE - 1);
     if (error) { toast('Erro ao carregar vistorias: ' + error.message); break; }
     out.push(...data);
@@ -154,14 +154,38 @@ const checks=[...document.querySelectorAll('.checks input')];
 fData.value = todayISO(); fData.max = todayISO();
 const tecPorNome = () => new Map(TEC.filter(t=>t.ativo).map(t => [t.n, t]));
 
-function fillTecList(){
-  const list = TEC.filter(t => t.ativo && (!scope() || t.eq===scope()));
-  $('dl-tec').innerHTML = list.map(t=>`<option value="${esc(t.n)}">${esc(title(t.ci))} · ${esc(title(t.s))}</option>`).join('');
+// Lista de técnicos em coluna (o datalist do celular mostrava em linha)
+const semAcento = s => String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+const tecList = $('tec-list'); let comboIdx = -1, comboItens = [];
+function fillTecList(){ if (!tecList.hidden) abrirCombo(); }
+function abrirCombo(){
+  const q = semAcento(fTec.value.trim());
+  comboItens = TEC.filter(t => t.ativo && (!scope() || t.eq===scope()) && (!q || semAcento(t.n+' '+t.ci+' '+t.s).includes(q))).slice(0, 40);
+  comboIdx = -1;
+  tecList.innerHTML = comboItens.map((t,i)=>`<li role="option" data-i="${i}" aria-selected="false">${esc(title(t.n))}<small>${esc(title(t.ci))} · ${esc(title(t.s))}</small></li>`).join('')
+    || '<li class="vazio">Nenhum técnico ativo com esse nome</li>';
+  tecList.hidden = false; fTec.setAttribute('aria-expanded','true');
 }
+function fecharCombo(){ tecList.hidden = true; fTec.setAttribute('aria-expanded','false'); }
+function escolherTec(i){ const t = comboItens[i]; if (!t) return; fTec.value = t.n; fecharCombo(); showAuto(); }
+tecList.addEventListener('pointerdown', e => { const li = e.target.closest('li[data-i]'); if (li){ e.preventDefault(); escolherTec(+li.dataset.i); } });
+fTec.addEventListener('focus', abrirCombo);
+fTec.addEventListener('blur', () => setTimeout(fecharCombo, 150));
+fTec.addEventListener('keydown', e => {
+  if (tecList.hidden && (e.key==='ArrowDown')) abrirCombo();
+  const lis = [...tecList.querySelectorAll('li[data-i]')]; if (!lis.length) return;
+  if (e.key==='ArrowDown' || e.key==='ArrowUp'){
+    e.preventDefault(); comboIdx = Math.max(0, Math.min(lis.length-1, comboIdx + (e.key==='ArrowDown'?1:-1)));
+    lis.forEach((l,i)=>l.setAttribute('aria-selected', i===comboIdx)); lis[comboIdx].scrollIntoView({block:'nearest'});
+  } else if (e.key==='Enter' && comboIdx>=0){ e.preventDefault(); escolherTec(comboIdx); }
+  else if (e.key==='Escape') fecharCombo();
+});
 async function showAuto(){
   const t = tecPorNome().get(fTec.value.trim().toUpperCase());
   const box = $('auto-box'), msg = $('f-tec-msg');
   msg.innerHTML = '';
+  $('as-nome-tec').textContent = t ? title(t.n) : 'Escolha o técnico acima';
+  $('as-nome-sup').textContent = t ? title(t.s) : '';
   if (!t){ box.hidden = true; return; }
   const w = fData.value ? wk(fData.value) : {sem:'–',ano:'–'};
   $('auto').innerHTML =
@@ -191,7 +215,42 @@ function verdict(){
   $('mot-box').hidden = !(crit.length || cons);
   return crit.length === 0;
 }
-fTec.addEventListener('input', showAuto);
+fTec.addEventListener('input', () => { abrirCombo(); showAuto(); });
+
+// ---------- Assinaturas (desenho guardado como traços, bem leve) ----------
+const ASS_W = 600, ASS_H = 200;
+const PADS = {};
+document.querySelectorAll('.assin').forEach(box => {
+  const cv = box.querySelector('canvas'), ctx = cv.getContext('2d');
+  const pad = { tracos: [], atual: null, box };
+  PADS[box.dataset.k] = pad;
+  const ajustar = () => {
+    const r = cv.getBoundingClientRect(); if (!r.width) return;
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = r.width * dpr; cv.height = r.height * dpr;
+    ctx.setTransform(cv.width/ASS_W, 0, 0, cv.height/ASS_H, 0, 0);
+    desenhar();
+  };
+  const desenhar = () => {
+    ctx.clearRect(0,0,ASS_W,ASS_H);
+    ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111';
+    pad.tracos.forEach(tr => { ctx.beginPath(); tr.forEach(([x,y],i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); if (tr.length===1) ctx.lineTo(tr[0][0]+.5, tr[0][1]); ctx.stroke(); });
+    box.classList.toggle('ok', pad.tracos.length > 0);
+  };
+  const ponto = e => { const r = cv.getBoundingClientRect(); return [Math.round((e.clientX-r.left)/r.width*ASS_W), Math.round((e.clientY-r.top)/r.height*ASS_H)]; };
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); cv.setPointerCapture(e.pointerId); pad.atual = [ponto(e)]; pad.tracos.push(pad.atual); desenhar(); });
+  cv.addEventListener('pointermove', e => { if (!pad.atual) return; const p = ponto(e), u = pad.atual[pad.atual.length-1]; if (Math.abs(p[0]-u[0])+Math.abs(p[1]-u[1]) >= 2){ pad.atual.push(p); desenhar(); } });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev => cv.addEventListener(ev, () => { pad.atual = null; }));
+  pad.limpar = () => { pad.tracos = []; desenhar(); };
+  pad.caminho = () => pad.tracos.map(tr => 'M' + tr.map(p => p.join(' ')).join(' L')).join(' ');
+  pad.ajustar = ajustar;
+  new ResizeObserver(ajustar).observe(cv);
+  box.querySelector('[data-limpar]').onclick = pad.limpar;
+});
+// Monta a imagem da assinatura a partir dos traços salvos
+const assinSVG = d => /^[ML0-9 .]*$/.test(d||'') && d
+  ? 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${ASS_W} ${ASS_H}"><path d="${d}" fill="none" stroke="#111" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
+  : '';
 fData.addEventListener('change', () => { checkDate(); showAuto(); });
 checks.forEach(c => c.addEventListener('change', verdict));
 
@@ -205,14 +264,18 @@ $('form').onsubmit = async e => {
   verdict();
   const marcados = checks.filter(c=>c.checked).map(c=>c.value);
   if (marcados.length && !fMot.value.trim()){ $('f-mot-msg').innerHTML='<div class="err">Descreva os itens e quantidades divergentes.</div>'; ok=false; }
+  $('f-assin-msg').innerHTML = '';
+  const faltam = [['tecnico','do técnico'],['supervisor','do supervisor']].filter(([k]) => !PADS[k].tracos.length).map(x=>x[1]);
+  if (faltam.length){ $('f-assin-msg').innerHTML = `<div class="err">Falta a assinatura ${faltam.join(' e ')}.</div>`; ok=false; }
   if (!ok) return;
 
   const btn = e.submitter; btn.disabled = true;
   // O banco preenche supervisor, gerente, cidade, base, equipe e decide a conformidade
   const { data, error } = await sb.from('vistoria_registros').insert({
     data: fData.value, tecnico_id: t.id, tecnico_nome: t.n, conforme: true,
-    divergencias: marcados, motivo: fMot.value.trim() || null
-  }).select('id,data,tecnico_id,tecnico_nome,conforme,motivo,supervisor,gerente,cidade,base,equipe_id,ano,semana').single();
+    divergencias: marcados, motivo: fMot.value.trim() || null,
+    assinatura_tecnico: PADS.tecnico.caminho(), assinatura_supervisor: PADS.supervisor.caminho(), assinado_por: PERFIL.nome
+  }).select('id,data,tecnico_id,tecnico_nome,conforme,motivo,supervisor,gerente,cidade,base,equipe_id,ano,semana,assinado_por').single();
   btn.disabled = false;
   if (error){ toast('Não foi possível salvar: ' + error.message); return; }
 
@@ -220,7 +283,7 @@ $('form').onsubmit = async e => {
   (await garantirAno(v.ano)).push(v);
   carregarResumo();
   toast(`Vistoria salva: ${title(v.t)}, ${v.c?'conforme':'não conforme'}`);
-  fTec.value=''; fMot.value=''; checks.forEach(c=>c.checked=false); verdict(); showAuto();
+  fTec.value=''; fMot.value=''; checks.forEach(c=>c.checked=false); PADS.tecnico.limpar(); PADS.supervisor.limpar(); verdict(); showAuto();
   renderLast();
 };
 function renderLast(){
@@ -344,10 +407,47 @@ function renderHist(){
     && (!q || (v.t+' '+v.s+' '+v.ci+' '+v.b).toUpperCase().includes(q)))
     .sort((a,b)=>b.d.localeCompare(a.d) || b.id-a.id);
   const pages=Math.max(1,Math.ceil(r.length/PS)); hPage=Math.min(hPage,pages-1);
-  $('h-body').innerHTML = r.slice(hPage*PS,(hPage+1)*PS).map(v=>`<tr><td>${fmtISO(v.d)}</td><td>${v.sem}</td><td>${esc(title(v.t))}</td><td><span class="tag ${v.c?'t-otimo':'t-grave'}">${v.c?'Conforme':'Não conforme'}</span></td><td class="mot">${esc(v.m)}</td><td>${esc(title(v.s))}</td><td>${esc(v.eq)}</td><td>${esc(title(v.ci))}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhuma vistoria com esses filtros.</td></tr>';
+  $('h-body').innerHTML = r.slice(hPage*PS,(hPage+1)*PS).map(v=>`<tr><td>${fmtISO(v.d)}</td><td>${v.sem}</td><td>${esc(title(v.t))}</td><td><span class="tag ${v.c?'t-otimo':'t-grave'}">${v.c?'Conforme':'Não conforme'}</span></td><td class="mot">${esc(v.m)}</td><td>${esc(title(v.s))}</td><td>${esc(v.eq)}</td><td>${esc(title(v.ci))}</td><td>${v.ass?'<span class="pill on">Sim</span>':'<span class="pill">Não</span>'}</td><td><button class="lnk" data-vis="${v.id}">Ver</button></td></tr>`).join('') || '<tr><td colspan="10" class="muted">Nenhuma vistoria com esses filtros.</td></tr>';
+  $('h-body').querySelectorAll('[data-vis]').forEach(b => b.onclick = () => abrirVistoria(+b.dataset.vis));
   const ok = r.filter(v=>v.c).length;
   $('h-info').textContent = `${r.length.toLocaleString('pt-BR')} vistorias · ${pct(ok,r.length)} conformes · página ${hPage+1} de ${pages}`;
 }
+
+// ---------- Detalhe da vistoria com assinaturas ----------
+let VIS_ATUAL = null;
+async function abrirVistoria(id){
+  $('vis-corpo').innerHTML = '<div class="loading-inline">Carregando…</div>'; $('dlg-vis').showModal();
+  const { data: r, error } = await sb.from('vistoria_registros').select('*').eq('id', id).single();
+  if (error || !r){ $('vis-corpo').innerHTML = '<div class="err">Não foi possível abrir a vistoria.</div>'; return; }
+  VIS_ATUAL = r;
+  $('vis-corpo').innerHTML = corpoVistoria(r, false);
+}
+function corpoVistoria(r, impressao){
+  const st = r.conforme ? 'Conforme' : 'Não conforme';
+  const fig = (d, quem, nome) => { const src = assinSVG(d); return `<figure>${src ? `<img class="assin-img" src="${src}" alt="Assinatura ${quem}">` : '<div class="muted" style="padding:20px 0">Sem assinatura</div>'}<figcaption>${quem}: ${esc(nome)}</figcaption></figure>`; };
+  return `<dl class="vis-grid">
+      <div><dt>Data</dt><dd>${fmtISO(r.data)} · semana ${r.semana}</dd></div><div><dt>Resultado</dt><dd>${st}</dd></div>
+      <div><dt>Técnico</dt><dd>${esc(title(r.tecnico_nome))}</dd></div><div><dt>Equipe</dt><dd>${esc(eqNome(r.equipe_id))}</dd></div>
+      <div><dt>Supervisor</dt><dd>${esc(title(r.supervisor))}</dd></div><div><dt>Gestor</dt><dd>${esc(title(r.gerente))}</dd></div>
+      <div><dt>Cidade</dt><dd>${esc(title(r.cidade))}</dd></div><div><dt>Base</dt><dd>${esc(title(r.base))}</dd></div>
+      ${(r.divergencias||[]).length ? `<div style="grid-column:1/-1"><dt>Itens divergentes</dt><dd>${esc(r.divergencias.join(', '))}</dd></div>` : ''}
+      ${r.motivo ? `<div style="grid-column:1/-1"><dt>Detalhe</dt><dd style="font-weight:400">${esc(r.motivo)}</dd></div>` : ''}
+      <div style="grid-column:1/-1"><dt>Registrada em</dt><dd style="font-weight:400">${new Date(r.criado_em).toLocaleString('pt-BR')}${r.assinado_por?' por '+esc(r.assinado_por):''}${r.origem==='planilha'?' (importada da planilha)':''}</dd></div>
+    </dl>
+    <div class="vis-assin">${fig(r.assinatura_tecnico,'Técnico',title(r.tecnico_nome))}${fig(r.assinatura_supervisor,'Supervisor',title(r.supervisor)+(r.assinado_por?' (lançado por '+r.assinado_por+')':''))}</div>`;
+}
+$('vis-fechar').onclick = () => $('dlg-vis').close();
+$('vis-imprimir').onclick = () => {
+  if (!VIS_ATUAL) return;
+  $('relatorio').innerHTML = `<div class="rel-head"><img class="lg" src="${IMG['logo-dtel.png']}" alt="DTEL">
+      <div class="t"><b>Comprovante de Vistoria Técnica</b><span>Nº ${VIS_ATUAL.id} · ${fmtISO(VIS_ATUAL.data)}</span></div>
+      <img class="selo" src="${IMG['selo-qualidade.png']}" alt="Selo Qualidade DTEL"></div>
+    <div class="rel-vis">${corpoVistoria(VIS_ATUAL, true)}</div>
+    <div class="rel-foot">Impresso em ${new Date().toLocaleString('pt-BR')} por ${esc(PERFIL.nome)} · Sistema de Vistorias Técnicas DTEL</div>`;
+  $('dlg-vis').close();
+  const imgs = [...$('relatorio').querySelectorAll('img')];
+  Promise.all(imgs.map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))).then(() => window.print());
+};
 
 // ---------- Técnicos (só ativos) ----------
 ['t-q','t-eq','t-ord'].forEach(id=>$(id).addEventListener('input',renderTec));

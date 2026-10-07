@@ -53,8 +53,10 @@
       </div>
       <div class="field">
         <label class="f" for="f-tec">Técnico</label>
-        <input type="search" id="f-tec" list="dl-tec" placeholder="Digite o nome" autocomplete="off" required>
-        <datalist id="dl-tec"></datalist>
+        <div class="combo">
+          <input type="search" id="f-tec" placeholder="Toque e digite o nome" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="tec-list" aria-autocomplete="list" required>
+          <ul id="tec-list" class="combo-list" role="listbox" hidden></ul>
+        </div>
         <div id="f-tec-msg"></div>
       </div>
       <div class="field" id="auto-box" hidden>
@@ -78,7 +80,23 @@
         <textarea id="f-mot" placeholder="Ex.: ONU Fiberhome 02 / Conector APC verde 03"></textarea>
         <div id="f-mot-msg"></div>
       </div>
-      <button class="btn" type="submit">Salvar vistoria</button>
+      <div class="field">
+        <span class="f" style="display:block;font-weight:600;font-size:.92rem;margin-bottom:6px">Assinaturas</span>
+        <div class="assin-grid">
+          <div class="assin" data-k="tecnico">
+            <div class="assin-top"><span>Técnico<small id="as-nome-tec">Escolha o técnico acima</small></span><button type="button" class="lnk" data-limpar="tecnico">Limpar</button></div>
+            <canvas aria-label="Área de assinatura do técnico"></canvas>
+            <div class="assin-linha">Assine com o dedo ou o mouse</div>
+          </div>
+          <div class="assin" data-k="supervisor">
+            <div class="assin-top"><span>Supervisor<small id="as-nome-sup"></small></span><button type="button" class="lnk" data-limpar="supervisor">Limpar</button></div>
+            <canvas aria-label="Área de assinatura do supervisor"></canvas>
+            <div class="assin-linha">Assine com o dedo ou o mouse</div>
+          </div>
+        </div>
+        <div id="f-assin-msg"></div>
+      </div>
+      <button class="btn full-mobile" type="submit">Salvar vistoria</button>
     </form>
     <aside class="panel">
       <h2 id="last-title">Últimas vistorias</h2>
@@ -126,7 +144,7 @@
     <div class="field"><label class="f" for="h-c">Resultado</label><select class="in" id="h-c"><option value="">Todos</option><option value="1">Conforme</option><option value="0">Não conforme</option></select></div>
     <div class="field grow"><label class="f" for="h-q">Buscar</label><input type="search" id="h-q" placeholder="Técnico, supervisor, cidade"></div>
   </div>
-  <div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Sem.</th><th>Técnico</th><th>Resultado</th><th>Divergência</th><th>Supervisor</th><th>Equipe</th><th>Cidade</th></tr></thead><tbody id="h-body"></tbody></table></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Sem.</th><th>Técnico</th><th>Resultado</th><th>Divergência</th><th>Supervisor</th><th>Equipe</th><th>Cidade</th><th>Assinada</th><th></th></tr></thead><tbody id="h-body"></tbody></table></div>
   <div class="pager"><span id="h-info"></span><button class="btn ghost" id="h-prev">Anterior</button><button class="btn ghost" id="h-next">Próxima</button></div>
 </section>
 
@@ -163,6 +181,17 @@
   <div class="tbl-wrap"><table><thead id="c-head"></thead><tbody id="c-body"></tbody></table></div>
   <div class="pager"><span id="c-info"></span></div>
 </section>
+
+<dialog id="dlg-vis">
+  <div class="dlg-form">
+    <h2>Vistoria</h2>
+    <div id="vis-corpo"></div>
+    <div class="dlg-actions">
+      <button class="btn ghost" type="button" id="vis-fechar">Fechar</button>
+      <button class="btn" type="button" id="vis-imprimir">Imprimir comprovante</button>
+    </div>
+  </div>
+</dialog>
 
 <dialog id="dlg">
   <form method="dialog" id="dlg-form" class="dlg-form" novalidate>
