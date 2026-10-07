@@ -19,6 +19,7 @@ const ANOS = {};          // cache de vistorias por ano: {2026: [...]}
 const ANO_ATUAL = new Date().getFullYear();
 const ANO_INICIAL = 2023;
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const EQ_TESTE = () => new Set(EQUIPES.filter(e => e.equipe_teste).map(e => e.nome));
 const eqNome = id => (EQUIPES.find(e => e.id === id) || {}).nome || 'Sem equipe';
 const isQual = () => PERFIL?.papel === 'qualidade';
 const isDir = () => PERFIL?.papel === 'diretoria';
@@ -85,7 +86,7 @@ async function iniciar(){
   $('who-name').textContent = perfil.nome + ' · ' + (isQual() ? 'Qualidade' : isDir() ? 'Diretoria' : eqNome(perfil.equipe_id));
   if (veTudo()){
     $('who-wrap').hidden = false;
-    $('who').innerHTML = '<option value="">Todas as equipes</option>' + EQUIPES.map(e=>`<option>${esc(e.nome)}</option>`).join('');
+    $('who').innerHTML = '<option value="">Todas as equipes</option>' + EQUIPES.map(e=>`<option value="${esc(e.nome)}">${esc(e.nome)}${e.equipe_teste?' (teste)':''}</option>`).join('');
     $('who').onchange = refreshAll;
   }
   if (isQual()) $('tab-cad').hidden = false;
@@ -103,7 +104,7 @@ async function iniciar(){
 
 async function carregarCadastros(){
   const [eq, tec, sups, gests] = await Promise.all([
-    sb.from('vistoria_equipes').select('id,nome').order('nome'),
+    sb.from('vistoria_equipes').select('*').order('nome'),
     sb.from('vistoria_tecnicos').select('*').order('nome').range(0, 4999),
     sb.from('vistoria_supervisores').select('*').order('nome'),
     sb.from('vistoria_gestores').select('*').order('nome')
@@ -313,8 +314,10 @@ pSem.onchange = renderPainel;
 
 function statsPainel(){
   const y=+pAno.value, s=pSem.value, lista = ANOS[y] || [];
-  const data = lista.filter(v => s==='todas' || v.sem===+s);
-  const eqs = scope() ? [scope()] : EQUIPES.map(e=>e.nome);
+  // Sem equipe escolhida, as equipes de teste ficam fora dos cálculos
+  const teste = scope() ? new Set() : EQ_TESTE();
+  const data = lista.filter(v => (s==='todas' || v.sem===+s) && !teste.has(v.eq));
+  const eqs = scope() ? [scope()] : EQUIPES.filter(e=>!e.equipe_teste).map(e=>e.nome);
   const stats = eqs.map(e => { const r=data.filter(v=>v.eq===e), ok=r.filter(v=>v.c).length; return {e, ok, nok:r.length-ok, tot:r.length, pct: r.length? ok/r.length : 0}; })
     .sort((a,b)=> (b.tot>0)-(a.tot>0) || b.pct-a.pct || b.tot-a.tot);
   const T = stats.reduce((a,x)=>({ok:a.ok+x.ok,tot:a.tot+x.tot}),{ok:0,tot:0});
@@ -344,7 +347,8 @@ function renderPainel(){
 }
 // Gráfico semanal com a % escrita em cima de cada barra
 function chartSVG(y, equipe, paraImpressao){
-  const rows = (ANOS[y]||[]).filter(v=>!equipe||v.eq===equipe);
+  const teste = equipe ? new Set() : EQ_TESTE();
+  const rows = (ANOS[y]||[]).filter(v => equipe ? v.eq===equipe : !teste.has(v.eq));
   const cur = wk(todayISO()), maxS = y===cur.ano ? cur.sem : 53;
   const bw = 26, pl=38, pr=10, pt=22, pb=28, W = Math.max(900, pl+pr+maxS*bw), H=250;
   const txt = paraImpressao ? '#5e6b61' : 'var(--muted)', grade = paraImpressao ? '#dfe5df' : 'var(--line)', vazio = paraImpressao ? '#e5e9e5' : 'var(--line)', forte = paraImpressao ? '#1b2a1e' : 'var(--text)';
@@ -463,7 +467,8 @@ function renderTec(){
   const q=$('t-q').value.trim().toUpperCase(), eq=$('t-eq').value, ord=$('t-ord').value;
   const lim = new Date(); lim.setDate(lim.getDate()-14); const limISO = lim.toISOString().slice(0,10);
   const vazio = {total:0,no_ano:0,conformes_ano:0,ultima:null};
-  let r = TEC.filter(t => t.ativo && (!eq||t.eq===eq) && (!q || (t.n+' '+t.ci+' '+t.s+' '+t.b).includes(q)))
+  const teste = eq ? new Set() : EQ_TESTE();
+  let r = TEC.filter(t => t.ativo && (eq ? t.eq===eq : !teste.has(t.eq)) && (!q || (t.n+' '+t.ci+' '+t.s+' '+t.b).includes(q)))
     .map(t => ({...t, r: RESUMO.get(t.id) || vazio}));
   if (ord==='ano') r.sort((a,b)=>b.r.no_ano-a.r.no_ano);
   else if (ord==='menos') r.sort((a,b)=>a.r.no_ano-b.r.no_ano);
@@ -520,9 +525,10 @@ const CADS = {
     preparar: d => ({...d, nome:d.nome.toUpperCase(), email:d.email?.toLowerCase()||null}) },
   equipes: { tabela:'vistoria_equipes', rotulo:'equipe', temAtivo:false,
     linhas: () => EQUIPES, busca: e => e.nome,
-    cols: ['Equipe','Gestores','Técnicos ativos',''],
-    celulas: e => [e.nome, GESTS.filter(g=>g.equipe_id===e.id).map(g=>title(g.nome)).join(', ')||'–', String(TEC.filter(t=>t.ativo&&t.equipe_id===e.id).length)],
-    campos: e => [{k:'nome', l:'Nome da equipe', req:true, v:e?.nome}],
+    cols: ['Equipe','Gestores','Técnicos ativos','Indicadores',''],
+    celulas: e => [e.nome, GESTS.filter(g=>g.equipe_id===e.id).map(g=>title(g.nome)).join(', ')||'–', String(TEC.filter(t=>t.ativo&&t.equipe_id===e.id).length), e.equipe_teste ? 'Fora (equipe de teste)' : 'Entra'],
+    campos: e => [{k:'nome', l:'Nome da equipe', req:true, v:e?.nome},
+      {k:'equipe_teste', l:'Equipe de teste (não entra nos indicadores, PDF geral e e-mail)', tipo:'bool', v:!!e?.equipe_teste}],
     preparar: d => d },
   destinatarios: { tabela:'vistoria_destinatarios', rotulo:'e-mail em cópia', temAtivo:true, extraNovo:{tipo:'qualidade'},
     linhas: () => DEST, busca: d => d.nome+' '+d.email,

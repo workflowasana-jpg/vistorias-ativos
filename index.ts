@@ -194,14 +194,17 @@ Deno.serve(async (req) => {
   const teste: string = body.teste_email ? (emailUsuario || body.teste_email) : "";
   const appUrl = (env("APP_URL") || "").replace(/\/$/, "");
 
-  const { data: equipes } = await admin.from("vistoria_equipes").select("id,nome").order("nome");
+  const { data: todasEquipes } = await admin.from("vistoria_equipes").select("*").order("nome");
+  // Equipes de teste da Qualidade ficam fora do relatório
+  const equipes = (todasEquipes ?? []).filter((e: { equipe_teste?: boolean }) => !e.equipe_teste);
+  const idsValidos = new Set(equipes.map((e: { id: number }) => e.id));
   const regs: Reg[] = [];
   for (let i = 0; ; i += 1000) {
     const { data, error } = await admin.from("vistoria_registros")
       .select("equipe_id,conforme,semana,data,tecnico_nome,supervisor,motivo")
       .eq("ano", ano).gte("semana", semana - 7).lte("semana", semana).order("id").range(i, i + 999);
     if (error) return json({ erro: error.message }, 500);
-    regs.push(...(data as Reg[]));
+    regs.push(...(data as Reg[]).filter((r) => r.equipe_id !== null && idsValidos.has(r.equipe_id)));
     if (data.length < 1000) break;
   }
 
